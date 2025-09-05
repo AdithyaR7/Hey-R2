@@ -1,0 +1,9 @@
+## sudo apt-get install portaudio19-dev python3-pyaudio  
+## ^ linux dependencies - https://pypi.org/project/PyAudio/
+pyaudio         # record inputs and play sounds
+
+openwakeword    # wake word detection
+numpy<2         # dependency for openwakeword
+
+openai-whisper  # speech-to-text
+ollama          # ollama llm for emotion parsing
