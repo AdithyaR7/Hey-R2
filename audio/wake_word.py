@@ -4,12 +4,12 @@ from openwakeword import Model
 import numpy as np
 
 class WakeWordDetector:
-    def __init__(self, wakeword_models: list = None):
+    def __init__(self, wakeword_models: list = None, detection_threshold=0.7):
         if wakeword_models is None:
             wakeword_models = ['alexa']  # Default to alexa for testing
         
         self.model = Model(wakeword_models=wakeword_models)
-        self.threshold = 0.5
+        self.threshold = detection_threshold
         
     def detect(self, audio_chunk: bytes) -> bool:
         """Check if wake word is detected in audio chunk"""
@@ -22,7 +22,7 @@ class WakeWordDetector:
         # Check if any wake word exceeds threshold
         for wake_word, confidence in predictions.items():
             if confidence > self.threshold:
-                print(f"Wake word '{wake_word}' detected with confidence {confidence:.2f}")
+                # print(f"Wake word '{wake_word}' detected with confidence {confidence:.2f}")
                 return True
         
         return False

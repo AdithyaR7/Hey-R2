@@ -11,7 +11,7 @@ class SpeechToText:
         Args:
             model_size: tiny, base, small, medium, large
         """
-        print(f"Loading Whisper {model_size} model...")
+        print(f"\nLoading Whisper {model_size} model...")
         self.model = whisper.load_model(model_size)
         
     def transcribe(self, audio_data: bytes) -> str:
@@ -25,7 +25,7 @@ class SpeechToText:
             # Transcribe using Whisper
             result = self.model.transcribe(temp_path)
             text = result["text"].strip()
-            print(f"Transcribed: '{text}'")
+            # print(f"Transcribed: '{text}'")
             return text
         finally:
             # Clean up temp file
