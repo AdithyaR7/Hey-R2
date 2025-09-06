@@ -1,9 +1,11 @@
 # audio/recorder.py
 import pyaudio
-import numpy as np
 import wave
 import io
 from typing import Optional
+import pygame
+import random
+import os
 
 class AudioRecorder:
     def __init__(self, sample_rate: int = 16000, chunk_size: int = 1024):
@@ -77,3 +79,70 @@ class AudioRecorder:
             self.stream.stop_stream()
             self.stream.close()
         self.audio.terminate()
+
+
+class AudioSpeaker:
+    def __init__(self):
+        """Initialize pygame mixer for audio playback"""
+        pygame.mixer.init()
+    
+    def speak(self, emotion: str):
+        """Play a random R2-D2 sound file from the emotion category folder"""
+        sound_folder = f"audio/sounds/{emotion}"
+        
+        try:
+            # Get all audio files in the emotion folder
+            if not os.path.exists(sound_folder):
+                print(f"Sound folder not found: {sound_folder}")
+                return
+            
+            audio_files = [f for f in os.listdir(sound_folder) 
+                          if f.lower().endswith(('.wav', '.mp3', '.ogg'))]
+            
+            if not audio_files:
+                print(f"No audio files found in {sound_folder}")
+                return
+            
+            # Pick random audio file
+            selected_file = random.choice(audio_files)
+            file_path = os.path.join(sound_folder, selected_file)
+            
+            # print(f"Playing R2-D2 sound: {selected_file}")
+            
+            # Load and play the sound
+            pygame.mixer.music.load(file_path)
+            pygame.mixer.music.play()
+            
+            # Wait for sound to finish
+            while pygame.mixer.music.get_busy():
+                pygame.time.wait(100)
+                
+        except Exception as e:
+            print(f"Error playing sound: {e}")
+            
+
+def main():
+    """Test the AudioSpeaker functionality"""
+    print("R2-D2 Audio Speaker Test")
+    print("Available emotions: happy, curious, concerned, scared, acknowledge")
+    print("Type 'quit' to exit\n")
+    
+    speaker = AudioSpeaker()
+    
+    while True:
+        emotion = input("Enter emotion to play: ").strip().lower()
+        
+        if emotion == 'quit':
+            break
+        
+        valid_emotions = ['happy', 'curious', 'concerned', 'scared', 'acknowledge']
+        
+        if emotion in valid_emotions:
+            speaker.speak(emotion)
+        else:
+            print(f"Invalid emotion. Choose from: {', '.join(valid_emotions)}")
+        
+        print()
+
+if __name__ == "__main__":
+    main()
