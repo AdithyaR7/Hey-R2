@@ -6,17 +6,21 @@ from audio.wake_word import WakeWordDetector
 from processing_unit.speech_to_text import SpeechToText
 
 def main():
+        
     # Initialize components
-    recorder = AudioRecorder()
-    wake_word = WakeWordDetector(['alexa'])
+    recorder = AudioRecorder()    
+    
+    r2_model_path = "audio/wakeword_models/heyr2.tflite"
+    wake_word = WakeWordDetector([r2_model_path], detection_threshold=0.7)
+    
     stt = SpeechToText(model_size="base")
     
-    print("\nR2-D2 Bot starting... Say 'Alexa' to activate")
+    print("\nR2-D2 is listening... Say 'Hey R2' to activate")
     
     try:
         recorder.start_listening()
         last_detection_time = 0
-        cooldown_period = 5.0  # 3 second cooldown
+        cooldown_period = 5.0  # 5 second cooldown
        
         while True:
             # Listen for wake word
@@ -29,23 +33,21 @@ def main():
                 last_detection_time = current_time
 
                 # Record 3s of speech
-                command_audio = recorder.record_command(timeout_seconds=2.0)
+                command_audio = recorder.record_command(timeout_seconds=3.0)
                 
                 text = stt.transcribe(command_audio)
-                print("Transcription complete...")
                 
                 # Clear audio buffer and reset wake word model
-                print("Clearing buffer and resetting model...")
                 recorder.clear_buffer()
                 wake_word.reset()
                         
                 if text:
-                   print(f"You said: {text}")
+                   print(f"Transcription: You said: {text}")
                    # TODO: Add emotion classification and R2 response
                 else:
                     print("No speech detected.")
                 
-                print("Listening for wake word again...\n")
+                print("\nListening for wake word again...\n")
                 continue
                
                
@@ -53,6 +55,7 @@ def main():
         print("\nShutting down R2-D2 Bot...")
     finally:
         recorder.stop_listening()
+        exit()
 
 if __name__ == "__main__":
    main()
