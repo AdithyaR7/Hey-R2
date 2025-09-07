@@ -2,7 +2,7 @@
 Interactive R2-D2 bot that responds to voice commands with its classic droid sounds based on emotional context.
 
 ## Overview
-*Hey-R2* is a voice-activated bot that mimics R2-D2's communication style. Say the wake word to get its atetntion, give a command, and R2 responds with appropriate beeps, whistles, and chirps based on the context of your message.
+*Hey-R2* is a voice-activated bot that mimics R2-D2's communication style. Say the wake word to get its attetntion, give a command, and R2 responds with appropriate beeps, whistles, and chirps based on the context of your message.
 
 ## How It Works
 The bot follows this workflow:
@@ -108,7 +108,7 @@ Example interactions:
 ## Troubleshooting
 If you encounter NumPy compatibility issues with OpenWakeWord:
 ```bash
-pip install numpy<2
+pip install "numpy<2"
 ```
 Look at the comments in requirements.txt for other dependencies, links, or system-specific considerations for these packages.
 
