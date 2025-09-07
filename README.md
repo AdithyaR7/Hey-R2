@@ -121,6 +121,10 @@ For ALSA audio warnings on Linux, these are typically harmless driver messages t
 - Sequential emotional responses
 - Edge deplyoment
 
+<div align="center">
+<img src="images/Lego_R2D2.png" width="400" />
+</div>
+
 ## Acknowledgements
 - OpenAI Whisper for speech recognition
 - OpenWakeWord for wake word detection. See its linked Google Colab notebook for custom wakeword
