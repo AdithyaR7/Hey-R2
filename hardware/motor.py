@@ -3,9 +3,12 @@ import RPi.GPIO as GPIO
 import time
 import os
 
+CAM_FOV = 77    # degrees
+IMG_WIDTH = 640 # pixels
+
 class Motor:
     def __init__(self, servo_pin=17, position_file='motor_position.txt'):
-        """Initialize motor control"""
+        """Initialize motor control""" 
         self.servo_pin = servo_pin
         self.position_file = position_file
         
@@ -20,9 +23,9 @@ class Motor:
         print(f"Motor initialized at {self.current_angle}°")
         
         # Control parameters
-        self.pixels_per_degree = 3.5  # 640px/180° ≈ 3.5 (tune this!)
-        self.dead_zone = 20  # Ignore small offsets
-        self.max_speed = 5  # Max degrees per update
+        self.pixels_per_degree = IMG_WIDTH/CAM_FOV  # 640px/77° - tune
+        self.dead_zone = 30  # Ignore small offsets
+        self.max_deg_speed = 2   # Max degrees per update
         
     def read_position(self):
         """Read current position from file"""
@@ -38,20 +41,22 @@ class Motor:
     
     def clamp_angle(self, angle):
         """Clamp angle to valid range 0-180"""
-        return max(0, min(180, angle))
+        return int(max(0, min(180, angle)))
     
     def set_angle(self, angle):
         """Move motor instantly to angle"""
         angle = self.clamp_angle(angle)
         duty = 2.5 + (angle / 18)
         self.pwm.ChangeDutyCycle(duty)
-        time.sleep(0.5)
+        time.sleep(0.05)
+        self.pwm.ChangeDutyCycle(0)
+        # time.sleep(0.05)
         self.current_angle = angle
         self.write_position(angle)
     
     def move_slow(self, target_angle, step=1):
         """Move motor slowly from current position to target angle"""
-        target_angle = self.clamp_angle(target_angle)
+        target_angle = int(self.clamp_angle(target_angle))
         start = self.current_angle
         
         if target_angle > start:
@@ -85,14 +90,24 @@ class Motor:
         # Proportional control: larger offset = larger movement
         # But cap at max_speed for smooth movement
         angle_change = pixel_offset / self.pixels_per_degree
-        angle_change = max(-self.max_speed, min(self.max_speed, angle_change))
+        angle_change = max(-self.max_deg_speed, min(self.max_deg_speed, angle_change))
+        
+        # don't move if too small < 1 degree
+        if abs(angle_change) < 1:  # Ignore tiny movements
+            return False
         
         # Calculate target
         target_angle = self.clamp_angle(self.current_angle + angle_change)
         
+        # Only move if change is significant
+        if abs(target_angle - self.current_angle) < 1.0:  # Less than 1 degree
+            return False  # Don't update PWM for tiny changes
+        
         # Single-step movement (non-blocking)
         duty = 2.5 + (target_angle / 18)
         self.pwm.ChangeDutyCycle(duty)
+        print(f"current angle = {self.current_angle}, target angle = {target_angle}-------------")
+        # self.set_angle(target_angle)
         
         self.current_angle = target_angle
         self.write_position(target_angle)
@@ -108,11 +123,11 @@ class Motor:
             return False
         
         # P-control: speed proportional to error
-        Kp = 0.02  # Proportional gain (tune this!)
-        angle_change = Kp * pixel_offset
+        Kp = 0.7  # Proportional gain - tune
+        angle_change = (pixel_offset / self.pixels_per_degree) * Kp
         
         # Limit maximum change per update
-        angle_change = max(-self.max_speed, min(self.max_speed, angle_change))
+        angle_change = max(-self.max_deg_speed, min(self.max_deg_speed, angle_change))
         
         target_angle = self.clamp_angle(self.current_angle + angle_change)
         
@@ -124,6 +139,16 @@ class Motor:
         self.write_position(target_angle)
         
         return True
+    
+    def move_home(self):
+        self.move_slow(target_angle=90, step=1)
+        time.sleep(1)
+        self.pwm.ChangeDutyCycle(0)  # Stop PWM signal after movement
+        return
+    
+    def stop(self):
+        """Stop PWM signal completely"""
+        self.pwm.ChangeDutyCycle(0)  # Turn off PWM
     
     def cleanup(self):
         """Clean up GPIO"""
