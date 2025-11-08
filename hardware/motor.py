@@ -1,31 +1,85 @@
 #!/usr/bin/env python3
-import RPi.GPIO as GPIO
 import time
 import os
+from rpi_hardware_pwm import HardwarePWM
 
 CAM_FOV = 77    # degrees
 IMG_WIDTH = 640 # pixels
 
+class PIDController:
+    """Simple PID controller for smooth tracking"""
+    def __init__(self, Kp=0.8, Ki=0.0, Kd=0.3, derivative_filter=0.8, integral_limit=50):
+        self.Kp = Kp
+        self.Ki = Ki
+        self.Kd = Kd
+        self.derivative_filter = derivative_filter  # Low-pass filter (0-1, lower = more filtering)
+        self.integral_limit = integral_limit  # Anti-windup limit
+
+        self.prev_error = 0
+        self.prev_derivative = 0
+        self.integral = 0
+
+    def update(self, error, dt=1.0):
+        """
+        Calculate PID output with derivative filtering
+        Args:
+            error: Current error (pixel offset)
+            dt: Time delta (we'll use 1.0 since frame rate varies)
+        Returns:
+            Control output (angle change in degrees)
+        """
+        # Proportional term
+        P = self.Kp * error
+
+        # Integral term (accumulated error) with anti-windup
+        self.integral += error * dt
+        # Clamp integral to prevent windup
+        self.integral = max(-self.integral_limit, min(self.integral_limit, self.integral))
+        I = self.Ki * self.integral
+
+        # Derivative term with low-pass filter to reduce noise
+        derivative = (error - self.prev_error) / dt
+        filtered_derivative = (self.derivative_filter * derivative +
+                              (1 - self.derivative_filter) * self.prev_derivative)
+        D = self.Kd * filtered_derivative
+
+        self.prev_error = error
+        self.prev_derivative = filtered_derivative
+
+        return P + I + D
+
+    def reset(self):
+        """Reset PID state"""
+        self.prev_error = 0
+        self.prev_derivative = 0
+        self.integral = 0
+
 class Motor:
-    def __init__(self, servo_pin=17, position_file='motor_position.txt'):
-        """Initialize motor control""" 
+    def __init__(self, servo_pin=12, position_file='motor_position.txt'):
+        """Initialize motor control"""
         self.servo_pin = servo_pin
         self.position_file = position_file
-        
-        # GPIO setup
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setup(self.servo_pin, GPIO.OUT)
-        self.pwm = GPIO.PWM(self.servo_pin, 50)
+
+        # Initialize hardware PWM (GPIO 12 = PWM channel 0)
+        # Standard servo: 50Hz, duty cycle 2.5% = 0°, 7.5% = 90°, 12.5% = 180°
+        self.pwm = HardwarePWM(pwm_channel=0, hz=50)
         self.pwm.start(0)
-        
-        # Read initial position
-        self.current_angle = self.read_position()
+
+        # Always start at home position (90°)
+        self.current_angle = 90
         print(f"Motor initialized at {self.current_angle}°")
-        
+
         # Control parameters
         self.pixels_per_degree = IMG_WIDTH/CAM_FOV  # 640px/77° - tune
-        self.dead_zone = 30  # Ignore small offsets
-        self.max_deg_speed = 2   # Max degrees per update
+
+        # PID control parameters (tunable)
+        self.MAX_SPEED_PER_UPDATE = 5.0  # degrees - prevents large jumps
+        self.MIN_MOVEMENT = 0.5  # degrees - prevents micro-adjustments
+
+        self.pid = PIDController(Kp=0.2, Ki=0.0, Kd=0.0)  # P-controller - moderately slow but works
+        # self.pid = PIDController(Kp=0.05, Ki=0.0, Kd=0.5)  # PID
+        
+        
         
     def read_position(self):
         """Read current position from file"""
@@ -42,15 +96,20 @@ class Motor:
     def clamp_angle(self, angle):
         """Clamp angle to valid range 0-180"""
         return int(max(0, min(180, angle)))
-    
+
+    def angle_to_duty_cycle(self, angle):
+        """Convert angle (0-180) to duty cycle percentage (2.5-12.5%)"""
+        # 0° = 2.5%, 90° = 7.5%, 180° = 12.5%
+        return 2.5 + (angle / 180.0) * 10.0
+
     def set_angle(self, angle):
         """Move motor instantly to angle"""
         angle = self.clamp_angle(angle)
-        duty = 2.5 + (angle / 18)
-        self.pwm.ChangeDutyCycle(duty)
+
+        duty = self.angle_to_duty_cycle(angle)
+        self.pwm.change_duty_cycle(duty)
         time.sleep(0.05)
-        self.pwm.ChangeDutyCycle(0)
-        # time.sleep(0.05)
+
         self.current_angle = angle
         self.write_position(angle)
     
@@ -58,100 +117,73 @@ class Motor:
         """Move motor slowly from current position to target angle"""
         target_angle = int(self.clamp_angle(target_angle))
         start = self.current_angle
-        
+
         if target_angle > start:
             angles = range(start, target_angle + 1, step)
         else:
             angles = range(start, target_angle - 1, -step)
-        
+
         for angle in angles:
-            duty = 2.5 + (angle / 18)
-            self.pwm.ChangeDutyCycle(duty)
+            duty = self.angle_to_duty_cycle(angle)
+            self.pwm.change_duty_cycle(duty)
             time.sleep(0.02)
-        
+
         self.current_angle = target_angle
         self.write_position(target_angle)
-    
-    def move_by_offset(self, pixel_offset):
+
+    def move_by_offset_pid(self, pixel_offset):
         """
-        Convert pixel offset to motor movement.
-        Uses proportional control - larger offset = larger movement.
-        
+        PID-based tracking for smooth movement.
+
         Args:
             pixel_offset: Signed pixel offset from center (-320 to +320)
-        
+
         Returns:
-            bool: True if moved, False if in dead zone
+            bool: True if moved, False if no movement needed
         """
-        # Check dead zone
-        if abs(pixel_offset) < self.dead_zone:
-            return False
-        
-        # Proportional control: larger offset = larger movement
-        # But cap at max_speed for smooth movement
-        angle_change = pixel_offset / self.pixels_per_degree
-        angle_change = max(-self.max_deg_speed, min(self.max_deg_speed, angle_change))
-        
-        # don't move if too small < 1 degree
-        if abs(angle_change) < 1:  # Ignore tiny movements
-            return False
-        
-        # Calculate target
+        # Convert pixel error to angle error
+        angle_error = pixel_offset / self.pixels_per_degree
+
+        # Update PID controller
+        angle_change = self.pid.update(error=angle_error)
+
+        # Apply rate limiting (prevent large jumps)
+        angle_change = max(-self.MAX_SPEED_PER_UPDATE,
+                          min(self.MAX_SPEED_PER_UPDATE, angle_change))
+
+        # Calculate target with hardware limits
         target_angle = self.clamp_angle(self.current_angle + angle_change)
-        
-        # Only move if change is significant
-        if abs(target_angle - self.current_angle) < 1.0:  # Less than 1 degree
-            return False  # Don't update PWM for tiny changes
-        
-        # Single-step movement (non-blocking)
-        duty = 2.5 + (target_angle / 18)
-        self.pwm.ChangeDutyCycle(duty)
-        print(f"current angle = {self.current_angle}, target angle = {target_angle}-------------")
-        # self.set_angle(target_angle)
-        
-        self.current_angle = target_angle
-        self.write_position(target_angle)
-        
-        return True
-    
-    def move_by_offset_smooth(self, pixel_offset):
-        """
-        Alternative: Smoother P-controller with velocity.
-        Movement speed proportional to offset distance.
-        """
-        if abs(pixel_offset) < self.dead_zone:
+
+        # Verify actual movement is significant
+        if abs(target_angle - self.current_angle) < self.MIN_MOVEMENT:
             return False
-        
-        # P-control: speed proportional to error
-        Kp = 0.7  # Proportional gain - tune
-        angle_change = (pixel_offset / self.pixels_per_degree) * Kp
-        
-        # Limit maximum change per update
-        angle_change = max(-self.max_deg_speed, min(self.max_deg_speed, angle_change))
-        
-        target_angle = self.clamp_angle(self.current_angle + angle_change)
-        
-        # Move immediately
-        duty = 2.5 + (target_angle / 18)
-        self.pwm.ChangeDutyCycle(duty)
-        
+
+        # Update servo position with hardware PWM
+        duty = self.angle_to_duty_cycle(target_angle)
+        self.pwm.change_duty_cycle(duty)
+        # time.sleep(0.05)  # Let servo move
+
+        # Update state
         self.current_angle = target_angle
-        self.write_position(target_angle)
-        
+
+        print(f"PID: offset={pixel_offset:+4d}px ({angle_error:+.1f}°) → Δ={angle_change:+.1f}° → target={target_angle:.0f}°")
+
         return True
     
     def move_home(self):
         self.move_slow(target_angle=90, step=1)
         time.sleep(1)
-        self.pwm.ChangeDutyCycle(0)  # Stop PWM signal after movement
+        # Hardware PWM keeps running (servo holds position)
         return
     
     def stop(self):
         """Stop PWM signal completely"""
-        self.pwm.ChangeDutyCycle(0)  # Turn off PWM
-    
+        try:
+            self.pwm.change_duty_cycle(0)  # Turn off PWM
+        except:
+            pass
+
     def cleanup(self):
-        """Clean up GPIO"""
+        """Clean up hardware PWM"""
         self.pwm.stop()
-        GPIO.cleanup()
         print(f"Motor cleaned up at position {self.current_angle}°")
