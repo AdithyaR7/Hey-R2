@@ -4,7 +4,7 @@ import argparse
 import os
 
 GPIO.setmode(GPIO.BCM)
-SERVO_PIN = 17
+SERVO_PIN = 12
 POSITION_FILE = 'motor_position.txt'
 
 GPIO.setup(SERVO_PIN, GPIO.OUT)
