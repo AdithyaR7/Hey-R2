@@ -16,15 +16,11 @@ def main():
     motor.move_home()
     print("Motor initialized to home - 90 degrees")
     time.sleep(2)
-    
-    offset_history = []
-    SMOOTH_N = 3  # average over last 3 frames
-    
+
     # Tracking stats
     fps_counter = 0
     fps_timer = time.time()
     tracking_active = False
-    last_move_time = 0
     
     print("Tracking started. Press Ctrl+C to exit")
     if not camera.headless:
@@ -34,28 +30,18 @@ def main():
         while True:
             # Get person position
             offset, confidence = camera.get_person_offset()
-            
-            # Smooth the offset BEFORE using it
+
             if offset is not None:
-                offset_history.append(offset)
-                if len(offset_history) > SMOOTH_N:
-                    offset_history.pop(0)
-                smoothed_offset = int(sum(offset_history) / len(offset_history))
-                
                 if not tracking_active:
                     print(f"Target acquired! Confidence: {confidence:.2f}")
                     tracking_active = True
-                
-                # Rate limit motor updates
-                current_time = time.time()
-                if current_time - last_move_time > 0.1:  # 10Hz max
-                    moved = motor.move_by_offset(smoothed_offset)  # Use ONE method only
-                    last_move_time = current_time
-                    
-                    if not moved:
-                        print("Centered - in dead zone")
+
+                moved = motor.move_by_offset_pid(offset)
+
+                if not moved:
+                    print("Centered - minimal movement")
             else:
-                offset_history = []  # Clear history on target loss
+                motor.pid.reset()  # Reset PID state
                 if tracking_active:
                     print("Target lost")
                     motor.stop()

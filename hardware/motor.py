@@ -77,7 +77,6 @@ class Motor:
         self.MIN_MOVEMENT = 0.5  # degrees - prevents micro-adjustments
 
         self.pid = PIDController(Kp=0.2, Ki=0.0, Kd=0.0)  # P-controller - moderately slow but works
-        # self.pid = PIDController(Kp=0.05, Ki=0.0, Kd=0.5)  # PID
         
         
         
@@ -161,7 +160,6 @@ class Motor:
         # Update servo position with hardware PWM
         duty = self.angle_to_duty_cycle(target_angle)
         self.pwm.change_duty_cycle(duty)
-        # time.sleep(0.05)  # Let servo move
 
         # Update state
         self.current_angle = target_angle
