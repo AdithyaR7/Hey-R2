@@ -7,7 +7,8 @@ from ultralytics import YOLO
 
 # Load model (will auto-download on first run)
 print("Loading model...")
-model = YOLO('yolov8n.pt')
+# model = YOLO('yolov8n.pt')
+model = YOLO('yolo26n.pt')
 
 # Check if display available
 HEADLESS = os.environ.get('DISPLAY') is None
