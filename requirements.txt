@@ -8,5 +8,8 @@ numpy<2         # dependency for openwakeword
 
 openai-whisper  # speech-to-text
 
+groq            # groq for api calls
+python-dotenv   # set api key in .env file
+
 # Prerequisite - Install ollama for system: https://ollama.com/download/linux
-ollama          # ollama llm for emotion parsing
+ollama          # ollama llm for emotion parsing on local system
