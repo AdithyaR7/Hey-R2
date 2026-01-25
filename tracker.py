@@ -10,7 +10,7 @@ from motor import Motor
 def main():
     # Initialize components
     print("Initializing R2 tracker...")
-    camera = Camera(model_name='yolo26n.pt', resolution=(640, 480), fps=30, flip=True)
+    camera = Camera(model_name='pi_cam/yolo26n.pt', resolution=(640, 480), fps=30, flip=True)
     motor = Motor(servo_pin=17)
     
     motor.move_home()
