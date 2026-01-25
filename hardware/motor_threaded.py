@@ -29,14 +29,14 @@ class Motor:
         self.motor_thread = None
 
         # Control parameters
-        self.pixels_per_degree = IMG_WIDTH/CAM_FOV  # 640px/77° - tune
+        self.pixels_per_degree = IMG_WIDTH / CAM_FOV  # 640px/77° ≈ 8.3 px/deg
 
-        # Smoothing parameters (tunable)
+        # Smoothing parameters (tuned)
         self.interpolation_speed = 0.8  # 0-1, higher = faster response to target changes
         self.MIN_MOVEMENT = 0.1  # degrees - minimum step size for smooth motion
-        self.MAX_SPEED = 40.0  # degrees/sec - maximum angular velocity
-        self.DEADBAND_PIXELS = 30  # pixels - ignore small offsets to prevent jitter
-        self.sigmoid_scale = 5.0  # Scaling factor for sigmoid curve (lower = smoother, higher = more aggressive)
+        self.MAX_SPEED = 75.0  # degrees/sec - maximum angular velocity (was 40)
+        self.DEADBAND_PIXELS = 30  # pixels - ignore small offsets to prevent jitter (was 30)
+        self.sigmoid_scale = 10.0  # Scaling factor for sigmoid curve (was 5.0, higher = smoother)
 
         print(f"Motor initialized at {self.current_angle}°")
 
@@ -65,28 +65,18 @@ class Motor:
         angle_error = pixel_offset / self.pixels_per_degree
 
         # Calculate desired target (proportional control)
-        # Use Kp to determine how aggressively to respond
-        Kp = 0.3  # Proportional gain - tune this
+        Kp = 0.3  # Proportional gain (was 0.3)
         angle_change = angle_error * Kp
 
         # Update target angle (thread-safe)
+        # Removed max_jump limiting - sigmoid interpolation handles smoothness
         with self.lock:
-            new_target = self.clamp_angle(self.current_angle + angle_change)
-            # Limit how far target can jump in one update
-            max_jump = 10.0  # degrees
-            if abs(new_target - self.target_angle) > max_jump:
-                if new_target > self.target_angle:
-                    self.target_angle += max_jump
-                else:
-                    self.target_angle -= max_jump
-            else:
-                self.target_angle = new_target
-
+            self.target_angle = self.clamp_angle(self.current_angle + angle_change)
             print(f"Target update: offset={pixel_offset:+4d}px ({angle_error:+.1f}°) → target={self.target_angle:.1f}°")
 
     def _control_loop(self):
         """
-        High-frequency motor control loop (runs in separate thread at ~100 FPS).
+        High-frequency motor control loop (runs in separate thread at ~100 Hz).
         Smoothly interpolates current angle towards target angle.
         """
         loop_rate = 100  # Hz

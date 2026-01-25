@@ -22,7 +22,8 @@ class Camera:
         self.picam2 = Picamera2()
         config = self.picam2.create_preview_configuration(
             main={"format": "RGB888", "size": resolution},
-            controls={"FrameRate": fps}
+            controls={"FrameRate": fps},
+            buffer_count=1  # Minimize buffering - always get freshest frame
         )
         self.picam2.configure(config)
         self.picam2.start()

@@ -10,7 +10,7 @@ from motor_threaded import Motor
 def main():
     # Initialize components
     print("Initializing R2 tracker (threaded version)...")
-    camera = Camera(model_name='yolov8n.pt', resolution=(640, 480), fps=30, flip=True)
+    camera = Camera(model_name='yolo26n.pt', resolution=(640, 480), fps=30, flip=True)
     motor = Motor(servo_pin=17)
 
     motor.move_home()
