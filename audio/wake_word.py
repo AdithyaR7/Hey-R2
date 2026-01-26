@@ -8,7 +8,10 @@ class WakeWordDetector:
         if wakeword_models is None:
             wakeword_models = ['alexa']  # Default to alexa for testing
         
-        self.model = Model(wakeword_models=wakeword_models)
+        self.model = Model(
+            wakeword_models=wakeword_models,
+            inference_framework='onnx'
+            )
         self.threshold = detection_threshold
         
     def detect(self, audio_chunk: bytes) -> bool:

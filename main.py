@@ -14,7 +14,8 @@ def main():
 
     # Initialize components
     recorder = AudioRecorder()  
-    r2_model_path = "audio/wakeword_models/heyr2.tflite"
+    # r2_model_path = "audio/wakeword_models/heyr2.tflite"
+    r2_model_path = "audio/wakeword_models/heyr2.onnx"
     wake_word = WakeWordDetector([r2_model_path], detection_threshold=0.7)
     speaker = AudioSpeaker()
 
