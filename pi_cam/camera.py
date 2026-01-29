@@ -5,7 +5,7 @@ from picamera2 import Picamera2
 from ultralytics import YOLO
 
 class Camera:
-    def __init__(self, model_name='yolov8n.pt', resolution=(640, 480), fps=30, flip=True):
+    def __init__(self, model_name='weights/yolov8n.pt', resolution=(640, 480), fps=30, flip=True):
         """Initialize camera and YOLO model"""
         print("Loading model...")
         self.model = YOLO(model_name)
