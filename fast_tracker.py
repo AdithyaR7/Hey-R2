@@ -5,12 +5,14 @@ sys.path.append('pi_cam')
 sys.path.append('hardware')
 
 from camera import Camera
+from hailo_camera_yolo import HailoCamera
 from motor_threaded import Motor
 
 def main():
     # Initialize components
     print("Initializing R2 tracker (threaded version)...")
-    camera = Camera(model_name='pi_cam/yolo26n.pt', resolution=(640, 480), fps=30, flip=True)
+    # camera = Camera(model_name='pi_cam/weights/yolo26n.pt', resolution=(640, 480), fps=60, flip=True) # CPU
+    camera = HailoCamera(model_path='/usr/share/hailo-models/weights/yolov6n_h8l.hef', flip=True)       # AI HAT Hailo
     motor = Motor(servo_pin=17)
 
     motor.move_home()
