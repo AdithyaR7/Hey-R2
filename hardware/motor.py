@@ -55,10 +55,9 @@ class PIDController:
         self.integral = 0
 
 class Motor:
-    def __init__(self, servo_pin=12, position_file='motor_position.txt', debug=False):
+    def __init__(self, servo_pin=12, debug=False):
         """Initialize motor control"""
         self.servo_pin = servo_pin
-        self.position_file = position_file
         self.debug = debug
 
         # Initialize hardware PWM (GPIO 12 = PWM channel 0)
@@ -72,27 +71,13 @@ class Motor:
             print(f"Motor initialized at {self.current_angle}°")
 
         # Control parameters
-        self.pixels_per_degree = IMG_WIDTH/CAM_FOV  # 640px/77° - tune
+        self.pixels_per_degree = IMG_WIDTH/CAM_FOV
 
-        # PID control parameters (tunable)
-        self.MAX_SPEED_PER_UPDATE = 5.0  # degrees - prevents large jumps
-        self.MIN_MOVEMENT = 0.5  # degrees - prevents micro-adjustments
+        # PID control parameters
+        self.MAX_SPEED_PER_UPDATE = 5.0
+        self.MIN_MOVEMENT = 0.5
 
-        self.pid = PIDController(Kp=0.2, Ki=0.0, Kd=0.0)  # P-controller - moderately slow but works
-        
-        
-        
-    def read_position(self):
-        """Read current position from file"""
-        if os.path.exists(self.position_file):
-            with open(self.position_file, 'r') as f:
-                return int(f.read().strip())
-        return 90  # Default center position
-    
-    def write_position(self, angle):
-        """Write current position to file"""
-        with open(self.position_file, 'w') as f:
-            f.write(str(int(angle)))
+        self.pid = PIDController(Kp=0.2, Ki=0.0, Kd=0.0)
     
     def clamp_angle(self, angle):
         """Clamp angle to valid range 0-180"""
@@ -106,14 +91,11 @@ class Motor:
     def set_angle(self, angle):
         """Move motor instantly to angle"""
         angle = self.clamp_angle(angle)
-
         duty = self.angle_to_duty_cycle(angle)
         self.pwm.change_duty_cycle(duty)
         time.sleep(0.05)
-
         self.current_angle = angle
-        self.write_position(angle)
-    
+
     def move_slow(self, target_angle, step=1):
         """Move motor slowly from current position to target angle"""
         target_angle = int(self.clamp_angle(target_angle))
@@ -130,7 +112,6 @@ class Motor:
             time.sleep(0.02)
 
         self.current_angle = target_angle
-        self.write_position(target_angle)
 
     def move_by_offset_pid(self, pixel_offset):
         """

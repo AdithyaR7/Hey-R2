@@ -9,10 +9,9 @@ CAM_FOV = 77    # degrees
 IMG_WIDTH = 640 # pixels
 
 class Motor:
-    def __init__(self, servo_pin=12, position_file='motor_position.txt', debug=False):
+    def __init__(self, servo_pin=12, debug=False):
         """Initialize threaded motor control"""
         self.servo_pin = servo_pin
-        self.position_file = position_file
         self.debug = debug
 
         # Initialize hardware PWM (GPIO 12 = PWM channel 0)
