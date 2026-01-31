@@ -32,11 +32,11 @@ class Motor:
         self.pixels_per_degree = IMG_WIDTH / CAM_FOV  # 640px/77° ≈ 8.3 px/deg
 
         # Smoothing parameters (tuned)
-        self.interpolation_speed = 0.8  # 0-1, higher = faster response to target changes
+        self.interpolation_speed = 0.7  # 0-1, higher = faster response to target changes
         self.MIN_MOVEMENT = 0.1  # degrees - minimum step size for smooth motion
-        self.MAX_SPEED = 75.0  # degrees/sec - maximum angular velocity (was 40)
-        self.DEADBAND_PIXELS = 30  # pixels - ignore small offsets to prevent jitter (was 30)
-        self.sigmoid_scale = 10.0  # Scaling factor for sigmoid curve (was 5.0, higher = smoother)
+        self.MAX_SPEED = 200.0  # degrees/sec - maximum angular velocity (was 40)
+        self.DEADBAND_PIXELS = 20  # pixels - ignore small offsets to prevent jitter (was 30)
+        self.sigmoid_scale = 8.0  # Scaling factor for sigmoid curve (was 5.0, higher = smoother)
 
         print(f"Motor initialized at {self.current_angle}°")
 
@@ -65,7 +65,7 @@ class Motor:
         angle_error = pixel_offset / self.pixels_per_degree
 
         # Calculate desired target (proportional control)
-        Kp = 0.3  # Proportional gain (was 0.3)
+        Kp = 0.2  # Proportional gain (was 0.3)
         angle_change = angle_error * Kp
 
         # Update target angle (thread-safe)
