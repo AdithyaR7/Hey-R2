@@ -5,13 +5,16 @@ sys.path.append('pi_cam')
 sys.path.append('hardware')
 
 from camera import Camera
-from motor import Motor
+from hailo_camera_yolo import HailoCamera
+# from motor import Motor
+from motor_fast import Motor
 
 def main():
     # Initialize components
     print("Initializing R2 tracker...")
-    camera = Camera(model_name='pi_cam/yolo26n.pt', resolution=(640, 480), fps=30, flip=True)
-    motor = Motor(servo_pin=17)
+    # camera = Camera(model_name='pi_cam/yolo26n.pt', resolution=(640, 480), fps=30, flip=True)
+    camera = HailoCamera(model_path='pi_cam/weights/yolov6n_h8l.hef', flip=True)       # AI HAT Hailo
+    motor = Motor(servo_pin=12)
     
     motor.move_home()
     print("Motor initialized to home - 90 degrees")
