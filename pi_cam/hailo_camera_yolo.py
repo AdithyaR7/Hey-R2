@@ -7,9 +7,8 @@ Tracks person position and calculates horizontal offset from screen center.
 import os
 import time
 import cv2
-from picamera2 import MappedArray, Picamera2, Preview
+from picamera2 import Picamera2
 from picamera2.devices import Hailo
-import numpy as np
 
 # COCO class names (person is class 0)
 COCO_CLASSES = [
