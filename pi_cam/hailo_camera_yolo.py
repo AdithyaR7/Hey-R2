@@ -51,7 +51,7 @@ class HailoCamera:
         self.picam2 = Picamera2()
         config = self.picam2.create_preview_configuration(
             main={"format": "RGB888", "size": (self.model_w, self.model_h)},
-            controls={'FrameRate': 60},
+            controls={'FrameRate': 50},
             buffer_count=2
         )
         self.picam2.configure(config)
