@@ -31,12 +31,19 @@ class Motor:
         # Control parameters
         self.pixels_per_degree = IMG_WIDTH / CAM_FOV  # 640px/77° ≈ 8.3 px/deg
 
+        # EMA filter for input smoothing
+        self.ema_alpha = 0.2  # 0-1, lower = smoother but more lag
+        self.ema_offset = 0.0
+
         # Smoothing parameters (tuned)
         self.interpolation_speed = 0.7  # 0-1, higher = faster response to target changes
         self.MIN_MOVEMENT = 0.1  # degrees - minimum step size for smooth motion
-        self.MAX_SPEED = 200.0  # degrees/sec - maximum angular velocity (was 40)
-        self.DEADBAND_PIXELS = 20  # pixels - ignore small offsets to prevent jitter (was 30)
-        self.sigmoid_scale = 8.0  # Scaling factor for sigmoid curve (was 5.0, higher = smoother)
+        # self.MAX_SPEED = 200.0  # degrees/sec - maximum angular velocity
+        # self.DEADBAND_PIXELS = 20  # pixels - ignore small offsets to prevent jitter
+        # self.sigmoid_scale = 8.0  # Scaling factor for sigmoid curve
+        self.MAX_SPEED = 150.0  # degrees/sec - maximum angular velocity
+        self.DEADBAND_PIXELS = 15  # pixels - ignore small offsets to prevent jitter
+        self.sigmoid_scale = 10.0  # Scaling factor for sigmoid curve (higher = smoother)
 
         print(f"Motor initialized at {self.current_angle}°")
 
@@ -51,12 +58,16 @@ class Motor:
 
     def set_target_from_offset(self, pixel_offset):
         """
-        Update target angle from pixel offset (called by main thread at ~10 FPS).
+        Update target angle from pixel offset (called by main thread at ~60 FPS).
         Thread-safe, non-blocking.
 
         Args:
             pixel_offset: Signed pixel offset from center (-320 to +320)
         """
+        # EMA filter - smooth noisy YOLO detections
+        self.ema_offset = self.ema_alpha * pixel_offset + (1 - self.ema_alpha) * self.ema_offset
+        pixel_offset = self.ema_offset
+
         # Deadband - ignore small offsets to prevent jitter from camera noise
         if abs(pixel_offset) < self.DEADBAND_PIXELS:
             return  # Don't update target, motor stays steady
@@ -65,14 +76,15 @@ class Motor:
         angle_error = pixel_offset / self.pixels_per_degree
 
         # Calculate desired target (proportional control)
-        Kp = 0.2  # Proportional gain (was 0.3)
+        # Kp = 0.2  # Proportional gain (was 0.3)
+        Kp = 0.15  # Proportional gain
         angle_change = angle_error * Kp
 
         # Update target angle (thread-safe)
-        # Removed max_jump limiting - sigmoid interpolation handles smoothness
+        # Sigmoid interpolation in control loop handles smoothness
         with self.lock:
             self.target_angle = self.clamp_angle(self.current_angle + angle_change)
-            print(f"Target update: offset={pixel_offset:+4d}px ({angle_error:+.1f}°) → target={self.target_angle:.1f}°")
+            print(f"Target update: offset={pixel_offset:+6.1f}px ({angle_error:+.1f}°) → target={self.target_angle:.1f}°")
 
     def _control_loop(self):
         """
