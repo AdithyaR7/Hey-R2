@@ -55,10 +55,11 @@ class PIDController:
         self.integral = 0
 
 class Motor:
-    def __init__(self, servo_pin=12, position_file='motor_position.txt'):
+    def __init__(self, servo_pin=12, position_file='motor_position.txt', debug=False):
         """Initialize motor control"""
         self.servo_pin = servo_pin
         self.position_file = position_file
+        self.debug = debug
 
         # Initialize hardware PWM (GPIO 12 = PWM channel 0)
         # Standard servo: 50Hz, duty cycle 2.5% = 0°, 7.5% = 90°, 12.5% = 180°
@@ -67,7 +68,8 @@ class Motor:
 
         # Always start at home position (90°)
         self.current_angle = 90
-        print(f"Motor initialized at {self.current_angle}°")
+        if self.debug:
+            print(f"Motor initialized at {self.current_angle}°")
 
         # Control parameters
         self.pixels_per_degree = IMG_WIDTH/CAM_FOV  # 640px/77° - tune
@@ -164,7 +166,8 @@ class Motor:
         # Update state
         self.current_angle = target_angle
 
-        print(f"PID: offset={pixel_offset:+4d}px ({angle_error:+.1f}°) → Δ={angle_change:+.1f}° → target={target_angle:.0f}°")
+        if self.debug:
+            print(f"PID: offset={pixel_offset:+4d}px ({angle_error:+.1f}°) → Δ={angle_change:+.1f}° → target={target_angle:.0f}°")
 
         return True
     
@@ -184,4 +187,5 @@ class Motor:
     def cleanup(self):
         """Clean up hardware PWM"""
         self.pwm.stop()
-        print(f"Motor cleaned up at position {self.current_angle}°")
+        if self.debug:
+            print(f"Motor cleaned up at position {self.current_angle}°")

@@ -9,10 +9,11 @@ CAM_FOV = 77    # degrees
 IMG_WIDTH = 640 # pixels
 
 class Motor:
-    def __init__(self, servo_pin=12, position_file='motor_position.txt'):
+    def __init__(self, servo_pin=12, position_file='motor_position.txt', debug=False):
         """Initialize threaded motor control"""
         self.servo_pin = servo_pin
         self.position_file = position_file
+        self.debug = debug
 
         # Initialize hardware PWM (GPIO 12 = PWM channel 0)
         # Standard servo: 50Hz, duty cycle 2.5% = 0°, 7.5% = 90°, 12.5% = 180°
@@ -41,7 +42,8 @@ class Motor:
         self.DEADBAND_PIXELS = 20  # pixels - ignore small offsets to prevent jitter
         self.sigmoid_scale = 9.0  # Scaling factor for sigmoid curve (higher = smoother)
 
-        print(f"Motor initialized at {self.current_angle}°")
+        if self.debug:
+            print(f"Motor initialized at {self.current_angle}°")
 
     def clamp_angle(self, angle):
         """Clamp angle to valid range 0-180"""
@@ -83,7 +85,8 @@ class Motor:
         # Update target angle (thread-safe)
         with self.lock:
             self.target_angle = self.clamp_angle(self.current_angle + angle_change)
-            print(f"Target update: offset={pixel_offset:+6.1f}px ({angle_error:+.1f}°) → target={self.target_angle:.1f}° | Kp={Kp}")
+            if self.debug:
+                print(f"Target update: offset={pixel_offset:+6.1f}px ({angle_error:+.1f}°) → target={self.target_angle:.1f}° | Kp={Kp}")
 
     def _control_loop(self):
         """
@@ -131,20 +134,23 @@ class Motor:
             loop_count += 1
             if time.time() - rate_timer >= 1.0:
                 actual_rate = loop_count / 1.0
-                print(f"[Motor loop: {actual_rate:.1f} Hz]")
+                if self.debug:
+                    print(f"[Motor loop: {actual_rate:.1f} Hz]")
                 loop_count = 0
                 rate_timer = time.time()
 
     def start_control_loop(self):
         """Start the motor control thread"""
         if self.running:
-            print("Motor control loop already running")
+            if self.debug:
+                print("Motor control loop already running")
             return
 
         self.running = True
         self.motor_thread = threading.Thread(target=self._control_loop, daemon=True)
         self.motor_thread.start()
-        print("Motor control loop started (100 Hz)")
+        if self.debug:
+            print("Motor control loop started (100 Hz)")
 
     def stop_control_loop(self):
         """Stop the motor control thread"""
@@ -154,7 +160,8 @@ class Motor:
         self.running = False
         if self.motor_thread:
             self.motor_thread.join(timeout=1.0)
-        print("Motor control loop stopped")
+        if self.debug:
+            print("Motor control loop stopped")
 
     def move_slow(self, target_angle, step=1):
         """Move motor slowly from current position to target angle (blocking)"""
@@ -191,4 +198,5 @@ class Motor:
         """Clean up hardware PWM and stop thread"""
         self.stop_control_loop()
         self.pwm.stop()
-        print(f"Motor cleaned up at position {self.current_angle:.1f}°")
+        if self.debug:
+            print(f"Motor cleaned up at position {self.current_angle:.1f}°")
