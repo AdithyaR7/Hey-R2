@@ -158,7 +158,8 @@ class HailoCamera:
         self.hailo.close()
         if not self.headless:
             cv2.destroyAllWindows()
-        print("Camera cleaned up")
+        if self.debug:
+            print("Camera cleaned up")
 
 
 def main():

@@ -14,13 +14,13 @@ def main():
     if args.cpu:
         from cpu_camera import Camera
         from motor import Motor
-        camera = Camera(model_name='pi_cam/weights/yolo26n.pt', resolution=(640, 480), fps=30, flip=True)
+        camera = Camera(model_name='pi_cam/weights/yolo26n.pt', resolution=(640, 480), fps=30, flip=True, debug=args.debug)
         motor = Motor(servo_pin=12, debug=args.debug)
         use_threaded = False
     else:
         from hailo_camera import HailoCamera
         from motor_threaded import Motor
-        camera = HailoCamera(model_path='pi_cam/weights/yolov6n_h8l.hef', flip=True)
+        camera = HailoCamera(model_path='pi_cam/weights/yolov6n_h8l.hef', flip=True, debug=args.debug)
         motor = Motor(servo_pin=12, debug=args.debug)
         use_threaded = True
 

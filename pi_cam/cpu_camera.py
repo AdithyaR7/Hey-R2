@@ -5,18 +5,20 @@ from picamera2 import Picamera2
 from ultralytics import YOLO
 
 class Camera:
-    def __init__(self, model_name='weights/yolov8n.pt', resolution=(640, 480), fps=30, flip=True):
+    def __init__(self, model_name='weights/yolov8n.pt', resolution=(640, 480), fps=30, flip=True, debug=False):
         """Initialize camera and YOLO model"""
+        self.debug = debug
+
         print("Loading model...")
         self.model = YOLO(model_name)
-        
+
         # Screen center
         self.screen_center_x = resolution[0] // 2
         self.screen_center_y = resolution[1] // 2
-        
+
         # Check if display available - < export DISPLAY=:0 > for display with ssh
         self.headless = os.environ.get('DISPLAY') is None
-        self.flip = flip      # flip camera feed 180 based on mount orientation
+        self.flip = flip
         
         # Setup camera
         self.picam2 = Picamera2()
@@ -67,11 +69,12 @@ class Camera:
                         
                         if not self.headless:
                             self._draw_visualization(frame, x1, y1, x2, y2, cx, cy, offset_x, confidence)
-                        
-                        # Print to terminal
+
                         direction = "RIGHT" if offset_x > 0 else "LEFT"
-                        print(f"Person at X={cx} | Offset: {offset_x:+4d}px ({direction:5s}) | Conf: {confidence:.2f}")
-                        
+
+                        if self.debug:
+                            print(f"Person at X={cx} | Offset: {offset_x:+4d}px ({direction:5s}) | Conf: {confidence:.2f}")
+
                         break  # Only track first person
                 break  # Only process first result
         
@@ -114,4 +117,5 @@ class Camera:
         self.picam2.stop()
         if not self.headless:
             cv2.destroyAllWindows()
-        print("Camera cleaned up")
+        if self.debug:
+            print("Camera cleaned up")
