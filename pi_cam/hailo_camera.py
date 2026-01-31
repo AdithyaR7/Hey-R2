@@ -50,7 +50,7 @@ class HailoCamera:
         self.picam2 = Picamera2()
         config = self.picam2.create_preview_configuration(
             main={"format": "RGB888", "size": (self.model_w, self.model_h)},
-            controls={'FrameRate': 50},
+            controls={'FrameRate': 60},
             buffer_count=2
         )
         self.picam2.configure(config)
@@ -123,11 +123,6 @@ class HailoCamera:
                         f"Offset: {offset_x:+4d}px ({direction:5s}) | "
                         f"Conf: {confidence:.2f}"
                     )
-                else:
-                    now = time.time()
-                    if now - self.last_fps_print >= 2.0:
-                        print(f"FPS: {self.fps:5.1f}")
-                        self.last_fps_print = now
 
                 break
 
