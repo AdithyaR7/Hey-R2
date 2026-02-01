@@ -9,6 +9,7 @@ sys.path.append('hardware')
 
 from audio.recorder import AudioRecorder, AudioSpeaker
 from audio.wake_word import WakeWordDetector
+from led_handler import LED
 
 # ============================================================================
 # STATE MANAGEMENT
@@ -209,7 +210,7 @@ def process_command(command_text, state_manager: StateManager, speaker: AudioSpe
     # Not a system command - continue to emotion response
     return False
 
-def audio_loop(state_manager: StateManager, args):
+def audio_loop(state_manager: StateManager, led: LED, args):
     """Runs the audio interaction system"""
 
     # Initialize audio components
@@ -247,6 +248,7 @@ def audio_loop(state_manager: StateManager, args):
 
             if (current_time - last_detection_time) > cooldown_period and wake_word.detect(audio_chunk):
                 print("[HEYR2] 'Hey R2' detected! Listening for command...")
+                led.set_status_light(True)
                 last_detection_time = current_time
 
                 # Record command - always listen, in any state
@@ -275,6 +277,7 @@ def audio_loop(state_manager: StateManager, args):
                 else:
                     print("[HEYR2] No speech detected")
 
+                led.set_status_light(False)
                 print("[HEYR2] Listening for wake word again...\n")
 
     finally:
@@ -294,8 +297,9 @@ def main():
     parser.add_argument('--debug-heyr2', action='store_true', help='Enable debug output for HeyR2 audio subsystem')
     args = parser.parse_args()
 
-    # Initialize state manager
+    # Initialize shared components
     state_manager = StateManager()
+    led = LED()
 
     print("=" * 60)
     print("R2-D2 SYSTEM STARTING")
@@ -314,7 +318,7 @@ def main():
 
     audio_thread = threading.Thread(
         target=audio_loop,
-        args=(state_manager, args),
+        args=(state_manager, led, args),
         name="AudioThread",
         daemon=True
     )
@@ -333,9 +337,23 @@ def main():
         print("=" * 60)
         state_manager.request_shutdown()
 
+    # Blink status light during shutdown (runs indefinitely if something hangs)
+    blink_thread = threading.Thread(
+        target=led.blink_status_light_forever,
+        args=(2.0,),
+        name="BlinkThread",
+        daemon=True
+    )
+    blink_thread.start()
+
     # Wait for threads to finish cleanup
     tracker_thread.join(timeout=5.0)
     audio_thread.join(timeout=5.0)
+
+    # Stop blinking, clean up
+    led.stop_blink_status_light()
+    blink_thread.join(timeout=1.0)
+    led.cleanup()
 
     print("=" * 60)
     print("R2-D2 SYSTEM STOPPED")
