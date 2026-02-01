@@ -116,16 +116,16 @@ class EmotionClassifier_API:
 
 def main():
     parser = argparse.ArgumentParser(description="R2-D2 Emotion Classifier Test")
-    parser.add_argument('--api', action='store_true', help="Use Groq API instead of local Ollama")
+    parser.add_argument('--local', action='store_true', help="Use local GPU (Ollama) instead of Groq API")
     args = parser.parse_args()
 
-    if args.api:
+    if args.local:
+        print("R2-D2 Emotion Classifier Test (Local Ollama)")
+        classifier = EmotionClassifier()
+    else:
         print("R2-D2 Emotion Classifier Test (Groq API)")
         print("Using GROQ_API_KEY environment variable")
         classifier = EmotionClassifier_API()
-    else:
-        print("R2-D2 Emotion Classifier Test (Local Ollama)")
-        classifier = EmotionClassifier()
 
     print("Type 'quit' to exit\n")
 
