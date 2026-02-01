@@ -1,8 +1,6 @@
 # main.py
 import time 
 import argparse
-from dotenv import load_dotenv
-load_dotenv()
 
 from audio.recorder import AudioRecorder, AudioSpeaker
 from audio.wake_word import WakeWordDetector  
@@ -26,8 +24,10 @@ def main():
         emotion_llm = EmotionClassifier()
         print("\nR2-D2 is listening (LOCAL)... Say 'Hey R2' to activate")
     else:
+        from processing_unit.speech_to_text import SpeechToText_API
         from processing_unit.emotion_response_llm import EmotionClassifier_API
-        processor = EmotionClassifier_API()
+        stt = SpeechToText_API()
+        emotion_llm = EmotionClassifier_API()
         print("\nR2-D2 is listening (API)... Say 'Hey R2' to activate")
     
     try:
@@ -46,14 +46,11 @@ def main():
                 last_detection_time = current_time
 
                 # Record 3s of speech
-                command_audio = recorder.record_command(timeout_seconds=3.0)
+                command_audio = recorder.record_command(timeout_seconds=2.0)
                 
                 # Transcribe and classify
-                if args.local:
-                    input_text = stt.transcribe(command_audio)
-                    emotion = emotion_llm.classify(input_text) if input_text else None
-                else:
-                    input_text, emotion = processor.process_audio(command_audio)
+                input_text = stt.transcribe(command_audio)
+                emotion = emotion_llm.classify(input_text) if input_text else None
                 
                 # Clear audio buffer and reset wake word model for next listen
                 recorder.clear_buffer()
