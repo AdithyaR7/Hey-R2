@@ -21,13 +21,15 @@ class StateManager:
         self._lock = threading.Lock()
 
         # Tracking subsystem
-        self.tracking_enabled = True  # Default ON
+        self.tracking_enabled = False  # Default OFF
 
         # HeyR2 subsystem
         self.muted = False            # Default not muted
 
         # System
         self.shutdown_event = threading.Event()
+        self.tracker_thread = None
+        self.heyr2_thread = None
 
     def is_tracking_enabled(self):
         with self._lock:
@@ -47,7 +49,7 @@ class StateManager:
 # TRACKING SUBSYSTEM
 # ============================================================================
 
-def tracking_loop(state_manager: StateManager, args):
+def tracking_loop(state_manager: StateManager, led: LED, args):
     """Runs the visual tracking system"""
 
     # Initialize camera and motor based on mode
@@ -144,6 +146,7 @@ def tracking_loop(state_manager: StateManager, args):
         motor.move_home()
         if args.debug_tracking:
             print("[TRACKER] Cleaning up...")
+        led.set_flashlight(False)
         camera.cleanup()
         motor.cleanup()
         print("[TRACKER] Stopped")
@@ -152,7 +155,7 @@ def tracking_loop(state_manager: StateManager, args):
 # HEYR2 SUBSYSTEM
 # ============================================================================
 
-def process_command(command_text, state_manager: StateManager, speaker: AudioSpeaker, args):
+def process_command(command_text, state_manager: StateManager, led: LED, speaker: AudioSpeaker, args):
     """
     Process voice commands and update state accordingly
 
@@ -164,6 +167,8 @@ def process_command(command_text, state_manager: StateManager, speaker: AudioSpe
     - "unmute" -> state_manager.muted = False
     - "track me" / "start tracking" -> state_manager.tracking_enabled = True
     - "stop tracking" -> state_manager.tracking_enabled = False
+    - "restart now" (exact) -> stop the program (systemd restarts it)
+    - "status check" -> blink LEDs to indicate subsystem health
     """
     command_lower = command_text.lower()
 
@@ -194,6 +199,7 @@ def process_command(command_text, state_manager: StateManager, speaker: AudioSpe
     if "start tracking" in command_lower or "track me" in command_lower:
         with state_manager._lock:
             state_manager.tracking_enabled = True
+        led.set_flashlight(True)
         if args.debug_heyr2:
             print("[HEYR2] Tracking enabled")
         speaker.speak("acknowledge")
@@ -202,9 +208,34 @@ def process_command(command_text, state_manager: StateManager, speaker: AudioSpe
     if "stop tracking" in command_lower:
         with state_manager._lock:
             state_manager.tracking_enabled = False
+        led.set_flashlight(False)
         if args.debug_heyr2:
             print("[HEYR2] Tracking disabled")
         speaker.speak("acknowledge")
+        return True
+
+    if "restart now" in command_lower:
+        if args.debug_heyr2:
+            print("[HEYR2] Restart requested")
+        speaker.speak("acknowledge")
+        state_manager.request_shutdown()
+        return True
+
+    if "status check" in command_lower:
+        if args.debug_heyr2:
+            print("[HEYR2] Status check requested")
+        # Blink both LEDs simultaneously for alive subsystems
+        blink_threads = []
+        if state_manager.heyr2_thread and state_manager.heyr2_thread.is_alive():
+            t = threading.Thread(target=led.blink_status_light, kwargs={"hz": 4.0, "seconds": 2.0})
+            blink_threads.append(t)
+        if state_manager.tracker_thread and state_manager.tracker_thread.is_alive():
+            t = threading.Thread(target=led.blink_flashlight, kwargs={"hz": 4.0, "seconds": 2.0})
+            blink_threads.append(t)
+        for t in blink_threads:
+            t.start()
+        for t in blink_threads:
+            t.join()
         return True
 
     # Not a system command - continue to emotion response
@@ -265,7 +296,7 @@ def audio_loop(state_manager: StateManager, led: LED, args):
                     print(f"[HEYR2] Transcription: {input_text}")
 
                     # Process command - returns True if system command handled
-                    is_system_command = process_command(input_text, state_manager, speaker, args)
+                    is_system_command = process_command(input_text, state_manager, led, speaker, args)
 
                     if not is_system_command:
                         # Not a system command - run emotion LLM and respond
@@ -311,21 +342,25 @@ def main():
     # Create threads for each subsystem
     tracker_thread = threading.Thread(
         target=tracking_loop,
-        args=(state_manager, args),
+        args=(state_manager, led, args),
         name="TrackerThread",
         daemon=True
     )
 
-    audio_thread = threading.Thread(
+    heyr2_thread = threading.Thread(
         target=audio_loop,
         args=(state_manager, led, args),
-        name="AudioThread",
+        name="HeyR2Thread",
         daemon=True
     )
 
+    # Store thread references for status check
+    state_manager.tracker_thread = tracker_thread
+    state_manager.heyr2_thread = heyr2_thread
+
     # Start both subsystems
     tracker_thread.start()
-    audio_thread.start()
+    heyr2_thread.start()
 
     # Main thread waits for shutdown
     try:
@@ -339,7 +374,7 @@ def main():
 
     # Blink status light during shutdown (runs indefinitely if something hangs)
     blink_thread = threading.Thread(
-        target=led.blink_status_light_forever,
+        target=led.blink_status_light_continuous,
         args=(2.0,),
         name="BlinkThread",
         daemon=True
@@ -348,10 +383,10 @@ def main():
 
     # Wait for threads to finish cleanup
     tracker_thread.join(timeout=5.0)
-    audio_thread.join(timeout=5.0)
+    heyr2_thread.join(timeout=5.0)
 
     # Stop blinking, clean up
-    led.stop_blink_status_light()
+    led.stop_blink_status_light_continuous()
     blink_thread.join(timeout=1.0)
     led.cleanup()
 
