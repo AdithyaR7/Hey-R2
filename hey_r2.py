@@ -10,7 +10,7 @@ from audio.wake_word import WakeWordDetector
 def main():
     parser = argparse.ArgumentParser(description="R2-D2 Voice System")
     parser.add_argument('--local', action='store_true', help="Use local GPU (Ollama) instead of Groq API")
-    args = parser.parse_args()
+    args = parser.parse_args() 
 
     # Initialize components
     recorder = AudioRecorder()  
