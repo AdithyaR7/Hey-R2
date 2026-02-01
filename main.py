@@ -23,7 +23,7 @@ class StateManager:
         self.tracking_enabled = True  # Default ON
 
         # HeyR2 subsystem
-        self.audio_enabled = True     # Default ON
+        self.muted = False            # Default not muted
 
         # System
         self.shutdown_event = threading.Event()
@@ -32,9 +32,9 @@ class StateManager:
         with self._lock:
             return self.tracking_enabled
 
-    def is_audio_enabled(self):
+    def is_muted(self):
         with self._lock:
-            return self.audio_enabled
+            return self.muted
 
     def should_shutdown(self):
         return self.shutdown_event.is_set()
@@ -158,30 +158,53 @@ def process_command(command_text, state_manager: StateManager, speaker: AudioSpe
     Returns:
         bool: True if command was handled (skip emotion LLM), False otherwise (continue to emotion response)
 
-    TODO: Add command handling here:
-    - "mute" -> state_manager.audio_enabled = False
-    - "track me" -> state_manager.tracking_enabled = True
+    Commands:
+    - "mute" -> state_manager.muted = True
+    - "unmute" -> state_manager.muted = False
+    - "track me" / "start tracking" -> state_manager.tracking_enabled = True
     - "stop tracking" -> state_manager.tracking_enabled = False
-    - etc.
     """
     command_lower = command_text.lower()
 
     if args.debug_heyr2:
-        print(f"[AUDIO] Processing command: '{command_text}'")
+        print(f"[HEYR2] Processing command: '{command_text}'")
 
-    # TODO: Command parsing will go here
-    # Example:
-    # if "mute" in command_lower:
-    #     with state_manager._lock:
-    #         state_manager.audio_enabled = False
-    #     print("[AUDIO] Audio muted")
-    #     return True  # Command handled, skip emotion
-    #
-    # if "track" in command_lower:
-    #     with state_manager._lock:
-    #         state_manager.tracking_enabled = True
-    #     print("[AUDIO] Tracking enabled")
-    #     return True
+    # Mute: only "unmute" works when muted
+    if state_manager.is_muted():
+        if "unmute" in command_lower:
+            with state_manager._lock:
+                state_manager.muted = False
+            if args.debug_heyr2:
+                print("[HEYR2] Unmuted")
+            speaker.speak("acknowledge")
+            return True
+        # Muted - ignore everything else
+        if args.debug_heyr2:
+            print("[HEYR2] Muted - ignoring command")
+        return True
+
+    if "mute" in command_lower:
+        with state_manager._lock:
+            state_manager.muted = True
+        if args.debug_heyr2:
+            print("[HEYR2] Muted")
+        return True  # No response when muting
+
+    if "start tracking" in command_lower or "track me" in command_lower:
+        with state_manager._lock:
+            state_manager.tracking_enabled = True
+        if args.debug_heyr2:
+            print("[HEYR2] Tracking enabled")
+        speaker.speak("acknowledge")
+        return True
+
+    if "stop tracking" in command_lower:
+        with state_manager._lock:
+            state_manager.tracking_enabled = False
+        if args.debug_heyr2:
+            print("[HEYR2] Tracking disabled")
+        speaker.speak("acknowledge")
+        return True
 
     # Not a system command - continue to emotion response
     return False
@@ -201,36 +224,32 @@ def audio_loop(state_manager: StateManager, args):
         from processing_unit.emotion_response_llm import EmotionClassifier
         stt = SpeechToText(model_size="base")
         emotion_llm = EmotionClassifier()
-        print("[AUDIO] Mode: LOCAL (Ollama)")
+        print("[HEYR2] Mode: LOCAL (Ollama)")
     else:
         from processing_unit.speech_to_text import SpeechToText_API
         from processing_unit.emotion_response_llm import EmotionClassifier_API
         stt = SpeechToText_API()
         emotion_llm = EmotionClassifier_API()
-        print("[AUDIO] Mode: API (Groq)")
+        print("[HEYR2] Mode: API (Groq)")
 
     recorder.start_listening()
     last_detection_time = 0
     cooldown_period = 5.0
 
-    print("[AUDIO] Listening for 'Hey R2'...")
+    print("[HEYR2] Listening for 'Hey R2'...")
 
     try:
         while not state_manager.should_shutdown():
-            # Check if audio is enabled
-            if not state_manager.is_audio_enabled():
-                time.sleep(0.1)
-                continue
 
             # Listen for wake word
             audio_chunk = recorder.read_chunk()
             current_time = time.time()
 
             if (current_time - last_detection_time) > cooldown_period and wake_word.detect(audio_chunk):
-                print("[AUDIO] 'Hey R2' detected! Listening for command...")
+                print("[HEYR2] 'Hey R2' detected! Listening for command...")
                 last_detection_time = current_time
 
-                # Record command
+                # Record command - always listen, in any state
                 command_audio = recorder.record_command(timeout_seconds=2.0)
 
                 # Transcribe
@@ -241,7 +260,7 @@ def audio_loop(state_manager: StateManager, args):
                 wake_word.reset()
 
                 if input_text:
-                    print(f"[AUDIO] Transcription: {input_text}")
+                    print(f"[HEYR2] Transcription: {input_text}")
 
                     # Process command - returns True if system command handled
                     is_system_command = process_command(input_text, state_manager, speaker, args)
@@ -249,18 +268,18 @@ def audio_loop(state_manager: StateManager, args):
                     if not is_system_command:
                         # Not a system command - run emotion LLM and respond
                         emotion = emotion_llm.classify(input_text)
-                        print(f"[AUDIO] Emotion: {emotion}")
+                        print(f"[HEYR2] Emotion: {emotion}")
                         speaker.speak(emotion)
                     # else: system command already handled, no emotion response needed
 
                 else:
-                    print("[AUDIO] No speech detected")
+                    print("[HEYR2] No speech detected")
 
-                print("[AUDIO] Listening for wake word again...\n")
+                print("[HEYR2] Listening for wake word again...\n")
 
     finally:
         recorder.stop_listening()
-        print("[AUDIO] Stopped")
+        print("[HEYR2] Stopped")
 
 # ============================================================================
 # MAIN
